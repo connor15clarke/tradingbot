@@ -1,0 +1,3 @@
+WS_ERROR: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1006), Timestamp: 2023-11-29T18:02:21.301074
+WS_ERROR: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1006), Timestamp: 2023-11-29T18:02:21.301074
+WS_CLOSE: WebSocket closed., Timestamp: 2023-11-29T18:02:21.302073
