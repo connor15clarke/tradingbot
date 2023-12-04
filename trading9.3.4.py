@@ -33,77 +33,81 @@ class IndicatorWeightOptimizer:
         self.lookback_period = lookback_period
         self.model = LinearRegression()
 
-    def calculate_indicators(self, data):
-        # Ensure data contains necessary columns
-        if not all(column in data.columns for column in ['Close', 'High', 'Low', 'Volume']):
-            raise ValueError("Data does not contain all required columns: 'Close', 'High', 'Low', 'Volume'")
+    def calculate_indicators(self, data, date_index=None):
+    # Initialize an empty DataFrame
+        indicators = pd.DataFrame()
 
-        
-    # Convert all data to float and ensure the index is datetime for consistency
+    # Ensure data contains necessary columns
+        if not all(column in data.columns for column in ['Close', 'High', 'Low', 'Volume']):
+            print("Data does not contain all required columns: 'Close', 'High', 'Low', 'Volume'")
+            return indicators  # Return the empty DataFrame
+
+    # Convert data to float and ensure the index is datetime
         try:
             data = data.copy().astype(float)
             data.index = pd.to_datetime(data.index)
         except Exception as e:
             print(f"Error in data type conversion: {e}")
-            return pd.DataFrame()
+            return indicators  # Return the empty DataFrame
 
-    # Compute indicators safely, checking for necessary columns
+    # If date_index is provided, slice the data up to that index
+        if date_index is not None:
+            print(f"Calculating indicators for data up to index {date_index}, date: {data.index[date_index]}")
+            if date_index >= len(data):
+                print(f"Warning: date_index {date_index} is out of range for the data.")
+                return indicators  # Return the empty DataFrame if out of range
+            data = data.iloc[:date_index + 1]
+
         try:
-        # Compute MACD and its signal line
-            if 'Close' in data.columns:
-                short_ema = data['Close'].ewm(span=8).mean()
-                long_ema = data['Close'].ewm(span=17).mean()
-                macd = short_ema - long_ema
-                macd_signal = macd.ewm(span=9).mean()
-            else:
-                raise ValueError('Close column missing for MACD calculation')
+        # MACD Calculation
+            print("Calculating MACD...")
+            short_ema = data['Close'].ewm(span=8).mean()
+            long_ema = data['Close'].ewm(span=17).mean()
+            macd = short_ema - long_ema
+            macd_signal = macd.ewm(span=9).mean()
+            print("MACD calculated successfully.")
 
-        # Compute Bollinger Bands
-            if 'Low' in data.columns and 'High' in data.columns:
-                sma = data['Low'].rolling(window=10).mean()
-                rolling_std = data['High'].rolling(window=10).std()
-                upper_band = sma + (rolling_std * 1.5)
-                lower_band = sma - (rolling_std * 1.5)
-            else:
-                raise ValueError('Low or High column missing for Bollinger Bands calculation')
+        # RSI Calculation
+            print("Calculating RSI...")
+            delta = data['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).fillna(0)
+            loss = (-delta.where(delta < 0, 0)).fillna(0)
+            avg_gain = gain.rolling(window=8, min_periods=1).mean()
+            avg_loss = loss.rolling(window=8, min_periods=1).mean()
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
+            print("RSI calculated successfully.")
 
-        # Compute RSI
-            if 'Close' in data.columns:
-                delta = data['Close'].diff()
-                gain = (delta.where(delta > 0, 0)).fillna(0)
-                loss = (-delta.where(delta < 0, 0)).fillna(0)
-                avg_gain = gain.rolling(window=8, min_periods=1).mean()
-                avg_loss = loss.rolling(window=8, min_periods=1).mean()
-                rs = avg_gain / avg_loss
-                rsi = 100 - (100 / (1 + rs))
-            else:
-                raise ValueError('Close column missing for RSI calculation')
+        # Bollinger Bands Calculation
+            print("Calculating Bollinger Bands...")
+            sma = data['Close'].rolling(window=20).mean()
+            rolling_std = data['Close'].rolling(window=20).std()
+            upper_band = sma + (2 * rolling_std)
+            lower_band = sma - (2 * rolling_std)
+            print("Bollinger Bands calculated successfully.")
 
-        # Compute Stochastic Oscillator
-            if 'Close' in data.columns:
-                low_min = data['Close'].rolling(window=6).min()
-                high_max = data['Close'].rolling(window=6).max()
-                k = 100 * ((data['Close'] - low_min) / (high_max - low_min))
-            else:
-                raise ValueError('Close column missing for Stochastic Oscillator calculation')
+        # Stochastic Oscillator Calculation
+            print("Calculating Stochastic Oscillator...")
+            low_min = data['Low'].rolling(window=14).min()
+            high_max = data['High'].rolling(window=14).max()
+            k = 100 * ((data['Close'] - low_min) / (high_max - low_min))
+            print("Stochastic Oscillator calculated successfully.")
 
-        # Compute OBV
-            if 'Volume' in data.columns and 'Close' in data.columns:
-                obv = data['Volume'].copy()
-                obv[data['Close'] < data['Close'].shift(1)] *= -1
-                obv = obv.cumsum()
-            else:
-                raise ValueError('Volume or Close column missing for OBV calculation')
+        # OBV Calculation
+            print("Calculating OBV...")
+            obv = data['Volume'].copy()
+            obv[data['Close'] < data['Close'].shift(1)] *= -1
+            bv = obv.cumsum()
+            print("OBV calculated successfully.")
 
-        # Compute ATR
-            if 'High' in data.columns and 'Low' in data.columns and 'Close' in data.columns:
-                tr1 = abs(data['High'] - data['Low'])
-                tr2 = abs(data['High'] - data['Close'].shift(1)).fillna(0)
-                tr3 = abs(data['Low'] - data['Close'].shift(1))
-                tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-                atr = tr.rolling(window=14).mean().fillna(tr)
-            else:
-                raise ValueError('High, Low, or Close column missing for ATR calculation')
+        # ATR Calculation
+            print("Calculating ATR...")
+            tr1 = abs(data['High'] - data['Low'])
+            tr2 = abs(data['High'] - data['Close'].shift(1)).fillna(0)
+            tr3 = abs(data['Low'] - data['Close'].shift(1))
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr = tr.rolling(window=14).mean().fillna(tr)                
+            print("ATR calculated successfully.")
 
         # Combine all indicators into a DataFrame
             indicators = pd.DataFrame({
@@ -117,30 +121,37 @@ class IndicatorWeightOptimizer:
                 'ATR': atr
             }, index=data.index)
 
-            # Fill NaN values
+        # Fill NaN values
             indicators.replace([np.inf, -np.inf], np.nan, inplace=True)  # Replace any inf values with NaN
             indicators.ffill(inplace=True)  # Forward fill to propagate last valid value forward
             indicators.dropna(inplace=True)  # Drop any remaining NaN values
             indicators.reset_index(drop=True, inplace=True)
 
+            print(f"Length of indicators DataFrame: {len(indicators)}")
             return indicators
 
         except Exception as e:
             print(f"Error in indicator calculation: {e}")
-            return pd.DataFrame()
+            return indicators 
 
-    def prepare_data(self):
+    def prepare_data(self, date_index=None):
         features, labels = [], []
 
         for ticker, data in self.historical_data.items():
-            indicators = self.calculate_indicators(data)
+            indicators = self.calculate_indicators(data, date_index)
 
-        # Adjust the range to ensure we do not go out of bounds
+            if indicators.empty:
+                continue  # Skip processing if indicators are empty
+
             for i in range(self.lookback_period, len(data) - self.lookback_period):
                 feature_vector = indicators.iloc[i - self.lookback_period:i].values.flatten()
-                features.append(feature_vector)
 
-            # Define labels based on whether the price increases or decreases the next day
+            # Debug: Check if all feature vectors have the same length
+                if features and len(feature_vector) != len(features[0]):
+                    print(f"Inconsistent feature vector length for {ticker} at index {i}")
+                    continue  # Skip this feature vector
+
+                features.append(feature_vector)
                 label = 1 if data['Close'].iloc[i] > data['Close'].iloc[i - 1] else 0
                 labels.append(label)
 
@@ -160,8 +171,13 @@ class IndicatorWeightOptimizer:
         # Return the model coefficients (weights)
         return self.model.coef_
 
-    def predict(self, new_data):
-        indicators = self.calculate_indicators(new_data)
+    def predict(self, new_data, date_index):
+        # Ensure new_data is sliced correctly
+        if date_index >= len(new_data):
+            raise IndexError("date_index is out of range for new_data.")
+        sliced_data = new_data.iloc[:date_index + 1]
+
+        indicators = self.calculate_indicators(sliced_data)
         features = indicators.tail(self.lookback_period).to_numpy().reshape(1, -1)
         return self.model.predict(features)
 
@@ -185,6 +201,8 @@ class BacktestTradingBot:
         self.optimizer.train_model()
         self.indicator_weights = self.optimizer.get_weights()
         self.logger = BotLogger()
+        for ticker in tickers:
+            print(f"Length of data for {ticker}: {len(self.historical_data[ticker])}")
 
     def _fetch_historical_data(self, tickers, start_date, end_date):
         data = yf.download(tickers, start=start_date, end=end_date, group_by='ticker')
@@ -280,10 +298,11 @@ class BacktestTradingBot:
         self.indicator_weights = self.optimizer.get_weights()
 
     def _analyze_stock(self, ticker, date_index):
+        print(f"Analyzing {ticker} for date index: {date_index}, corresponding to date: {self.historical_data[ticker].index[date_index]}")
         data = self.historical_data[ticker]
 
         # Compute indicators
-        indicators = self.optimizer.calculate_indicators(data)
+        indicators = self.optimizer.calculate_indicators(self.historical_data[ticker], date_index)
 
         if date_index < 0 or date_index >= len(indicators):
             print(f"Warning: date_index {date_index} is out of range for {ticker}.")
@@ -479,6 +498,8 @@ class BacktestTradingBot:
     def run(self):
         self._init_optimizer()
 
+        min_length = min(len(self.historical_data[ticker]) for ticker in self.historical_data)
+
     # Debug: Print the total number of days in the iteration
         total_days = len(self.historical_data[next(iter(self.historical_data))]) - self.lookback_period
         print(f"Total days to process: {total_days}")
@@ -534,8 +555,8 @@ class BacktestTradingBot:
 
 # Tickers and date range
 tickers = ["TQQQ", "SQQQ"]
-start_date = "2019-01-01"
-end_date = "2022-01-01"
+start_date = "2020-01-01"
+end_date = "2021-01-01"
 
 bot = BacktestTradingBot(tickers, start_date, end_date)
 bot.logger.output_log(print_log=True, save_to_file='trading_bot_log.txt')
